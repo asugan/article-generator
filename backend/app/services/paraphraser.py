@@ -132,14 +132,26 @@ class ParaphrasingService:
                 if para_phrases and isinstance(para_phrases, list) and len(para_phrases) > 0:
                     logger.info(f"Successfully generated {len(para_phrases)} paraphrases")
 
-                    for phrase in para_phrases:
-                        if phrase and len(phrase.strip()) > 10:  # Filter out empty or very short results
-                            variations.append(phrase)
+                    for i, phrase in enumerate(para_phrases):
+                        logger.info(f"Processing paraphrase {i}: {type(phrase)} - {phrase}")
+
+                        # Handle different result formats (string or tuple)
+                        if isinstance(phrase, tuple):
+                            # If it's a tuple, take the first element (usually the paraphrase)
+                            logger.info(f"Tuple detected, extracting first element")
+                            phrase = phrase[0] if phrase else ""
+
+                        if phrase and len(str(phrase).strip()) > 10:  # Filter out empty or very short results
+                            clean_phrase = str(phrase).strip()
+                            logger.info(f"Adding variation: {clean_phrase[:100]}...")
+                            variations.append(clean_phrase)
                             # Calculate confidence based on model parameters and quality
                             confidence = self._calculate_model_confidence(
-                                request.adequacy, request.fluency, request.diversity, phrase
+                                request.adequacy, request.fluency, request.diversity, clean_phrase
                             )
                             confidence_scores.append(confidence)
+                        else:
+                            logger.warning(f"Skipping phrase due to length or content: {phrase}")
                 else:
                     logger.warning(f"Invalid or empty paraphrase results: {para_phrases}")
                     return await self._paraphrase_with_fallback(request)
