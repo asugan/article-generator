@@ -6,7 +6,7 @@ from datetime import datetime
 from models.article import (
     ParaphraseRequest, ParaphraseResponse,
     ArticleGenerationRequest, ArticleGenerationResponse,
-    SEOAnalysisRequest, SEOAnalysisResponse
+    SEOAnalysisRequest, SEOAnalysisResponse, SEOContent
 )
 from services.paraphraser import paraphrasing_service
 from services.article_generator import article_generator_service
@@ -51,6 +51,17 @@ async def generate_article(request: ArticleGenerationRequest):
             )
             variations, _, _ = await paraphrasing_service.paraphrase_text(paraphrase_request)
 
+        # Extract SEO content if available
+        seo_content = None
+        if "seo_content" in metadata:
+            seo_data = metadata["seo_content"]
+            seo_content = SEOContent(
+                h1_heading=seo_data["h1_heading"],
+                h2_headings=seo_data["h2_headings"],
+                meta_description=metadata["meta_description"],  # Use the generated meta description
+                slug=seo_data["slug"]
+            )
+
         return ArticleGenerationResponse(
             topic=request.topic,
             generated_article=article_content,
@@ -60,7 +71,8 @@ async def generate_article(request: ArticleGenerationRequest):
             readability_score=metadata["readability_score"],
             variations=variations,
             processing_time=processing_time,
-            created_at=datetime.now()
+            created_at=datetime.now(),
+            seo_content=seo_content
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Article generation failed: {str(e)}")

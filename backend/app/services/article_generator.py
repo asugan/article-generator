@@ -6,6 +6,7 @@ import logging
 from typing import List, Dict, Tuple
 from models.article import ArticleGenerationRequest, ParaphraseRequest
 from services.paraphraser import paraphrasing_service
+from services.seo_content_generator import seo_content_generator, SEOContent
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -48,8 +49,13 @@ class ArticleGeneratorService:
         """
         start_time = time.time()
 
-        # Generate article content
-        article_content = await self._generate_article_content(request)
+        # Generate SEO content first
+        seo_content = await seo_content_generator.generate_seo_content(
+            request.topic, request.keywords
+        )
+
+        # Generate article content with SEO structure
+        article_content = await self._generate_article_content(request, seo_content)
 
         # Apply paraphrasing if requested
         if request.include_paraphrasing:
@@ -75,28 +81,33 @@ class ArticleGeneratorService:
         metadata = {
             "word_count": word_count,
             "keyword_density": keyword_density,
-            "meta_description": self._generate_meta_description(article_content, request.topic),
-            "readability_score": self._calculate_readability_score(article_content)
+            "meta_description": seo_content.meta_description,
+            "readability_score": self._calculate_readability_score(article_content),
+            "seo_content": {
+                "h1_heading": seo_content.h1_heading,
+                "h2_headings": seo_content.h2_headings,
+                "slug": seo_content.slug
+            }
         }
 
         return article_content, metadata, processing_time
 
-    async def _generate_article_content(self, request: ArticleGenerationRequest) -> str:
+    async def _generate_article_content(self, request: ArticleGenerationRequest, seo_content: SEOContent = None) -> str:
         """Generate article content based on request parameters"""
         # Try Nano-GPT API first
         try:
             logger.info(
                 f"Attempting to generate article using Nano-GPT API for topic: {request.topic}")
-            return await self._generate_with_nano_gpt(request)
+            return await self._generate_with_nano_gpt(request, seo_content)
         except Exception as e:
             logger.warning(
                 f"Nano-GPT API failed: {e}, falling back to templates")
             # If API fails, use template system
             logger.info(
                 f"Using template-based generation for topic: {request.topic}")
-            return self._generate_with_templates(request)
+            return self._generate_with_templates(request, seo_content)
 
-    async def _generate_with_nano_gpt(self, request: ArticleGenerationRequest) -> str:
+    async def _generate_with_nano_gpt(self, request: ArticleGenerationRequest, seo_content: SEOContent = None) -> str:
         """Generate article using Nano-GPT API"""
         import os
         self.api_key = os.getenv("NANO_GPT_API_KEY")
@@ -114,17 +125,30 @@ class ArticleGeneratorService:
             "formal": "Write in a very formal, academic tone with proper structure and language."
         }
 
+        # Build SEO structure if available
+        seo_structure = ""
+        if seo_content:
+            h2_list = "\n".join([f"- {h2}" for h2 in seo_content.h2_headings])
+            seo_structure = f"""
+
+Use this structure:
+H1: {seo_content.h1_heading}
+
+H2 Headings to cover:
+{h2_list}"""
+
         prompt = f"""Write an SEO-optimized article about "{request.topic}" with the following requirements:
 
 - Target word count: {request.target_length} words
 - Keywords to include: {keywords_str}
 - Tone: {tone_instructions.get(request.tone, "professional")}
-- Include proper heading structure (H1, H2, H3)
+- Use proper heading structure (H1, H2, H3)
 - Make it engaging and informative
 - Include practical examples and actionable insights
 - End with a clear conclusion and call to action
+{seo_structure}
 
-Please write a complete, well-structured article."""
+Please write a complete, well-structured article following the provided SEO structure."""
 
         payload = {
             "model": "deepseek-ai/deepseek-v3.2-exp",
@@ -177,24 +201,43 @@ Please write a complete, well-structured article."""
 
             return article_content
 
-    def _generate_with_templates(self, request: ArticleGenerationRequest) -> str:
+    def _generate_with_templates(self, request: ArticleGenerationRequest, seo_content: SEOContent = None) -> str:
         """Fallback template-based generation"""
         topic = request.topic
         keywords = request.keywords or [topic]
         target_length = request.target_length
 
-        # Select templates
-        introduction = random.choice(
-            self.introduction_templates).format(topic=topic)
-        conclusion = random.choice(
-            self.conclusion_templates).format(topic=topic)
+        # Select templates - use SEO content if available
+        if seo_content:
+            # Create structured article with SEO headings
+            article_parts = [f"# {seo_content.h1_heading}"]
 
-        # Generate body paragraphs
-        body_paragraphs = self._generate_body_paragraphs(
-            topic, keywords, target_length)
+            # Add introduction
+            introduction = random.choice(self.introduction_templates).format(topic=topic)
+            article_parts.append(introduction)
 
-        # Combine sections
-        article_parts = [introduction] + body_paragraphs + [conclusion]
+            # Add H2 sections
+            for h2 in seo_content.h2_headings:
+                article_parts.append(f"## {h2}")
+                # Generate content for this H2
+                paragraph = self._generate_paragraph(h2.replace(topic.lower(), topic), keywords)
+                article_parts.append(paragraph)
+
+            # Add conclusion
+            conclusion = random.choice(self.conclusion_templates).format(topic=topic)
+            article_parts.append(f"## Conclusion")
+            article_parts.append(conclusion)
+        else:
+            # Fallback to original template structure
+            introduction = random.choice(self.introduction_templates).format(topic=topic)
+            conclusion = random.choice(self.conclusion_templates).format(topic=topic)
+
+            # Generate body paragraphs
+            body_paragraphs = self._generate_body_paragraphs(topic, keywords, target_length)
+
+            # Combine sections
+            article_parts = [introduction] + body_paragraphs + [conclusion]
+
         article = "\n\n".join(article_parts)
 
         # Adjust length to meet target

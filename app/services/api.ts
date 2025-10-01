@@ -34,6 +34,13 @@ export interface ArticleGenerationRequest {
   paraphrase_config?: ParaphraseRequest;
 }
 
+export interface SEOContent {
+  h1_heading: string;
+  h2_headings: string[];
+  meta_description: string;
+  slug: string;
+}
+
 export interface ArticleGenerationResponse {
   topic: string;
   generated_article: string;
@@ -44,6 +51,7 @@ export interface ArticleGenerationResponse {
   variations?: string[];
   processing_time: number;
   created_at: string;
+  seo_content?: SEOContent;
 }
 
 export interface SEOAnalysisRequest {

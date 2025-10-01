@@ -10,7 +10,8 @@ import {
   ArticleGenerationResponse,
   SEOAnalysisRequest,
   SEOAnalysisResponse,
-  SaveArticleRequest
+  SaveArticleRequest,
+  SEOContent
 } from '../services/api';
 import { saveClientArticle } from '../lib/clientStorage';
 import { useRouter } from 'next/navigation';
@@ -33,7 +34,8 @@ const ArticleGenerator: React.FC = () => {
   const [generatedArticle, setGeneratedArticle] = useState<ArticleGenerationResponse | null>(null);
   const [seoAnalysis, setSeoAnalysis] = useState<SEOAnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'article' | 'variations' | 'seo'>('article');
+  const [activeTab, setActiveTab] = useState<'article' | 'variations' | 'seo' | 'seo-content'>('article');
+  const [editableSEOContent, setEditableSEOContent] = useState<SEOContent | null>(null);
   const [saving, setSaving] = useState(false);
 
   const {
@@ -84,6 +86,11 @@ const ArticleGenerator: React.FC = () => {
       const articleResponse = await articleAPI.generateArticle(request);
       setGeneratedArticle(articleResponse);
 
+      // Initialize editable SEO content if available
+      if (articleResponse.seo_content) {
+        setEditableSEOContent({ ...articleResponse.seo_content });
+      }
+
       // Also perform SEO analysis
       const seoRequest: SEOAnalysisRequest = {
         article_text: articleResponse.generated_article,
@@ -116,6 +123,15 @@ const ArticleGenerator: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const updateSEOContent = (field: keyof SEOContent, value: string | string[]) => {
+    if (editableSEOContent) {
+      setEditableSEOContent({
+        ...editableSEOContent,
+        [field]: value
+      });
+    }
+  };
+
   const saveArticleToStorage = async () => {
     if (!generatedArticle) return;
 
@@ -132,7 +148,7 @@ const ArticleGenerator: React.FC = () => {
         wordCount: generatedArticle.word_count,
         readabilityScore: generatedArticle.readability_score,
         seoScore: seoAnalysis?.seo_score,
-        metaDescription: generatedArticle.meta_description
+        metaDescription: editableSEOContent?.meta_description || generatedArticle.meta_description
       };
 
       // Önce backend'e deneyelim
@@ -155,7 +171,7 @@ const ArticleGenerator: React.FC = () => {
             wordCount: generatedArticle.word_count,
             readabilityScore: generatedArticle.readability_score,
             seoScore: seoAnalysis?.seo_score,
-            metaDescription: generatedArticle.meta_description
+            metaDescription: editableSEOContent?.meta_description || generatedArticle.meta_description
           }
         );
 
@@ -390,6 +406,18 @@ const ArticleGenerator: React.FC = () => {
                   Variations ({generatedArticle.variations.length})
                 </button>
               )}
+              {generatedArticle.seo_content && (
+                <button
+                  onClick={() => setActiveTab('seo-content')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'seo-content'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  SEO Content
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('seo')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -489,6 +517,148 @@ const ArticleGenerator: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* SEO Content */}
+          {activeTab === 'seo-content' && editableSEOContent && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">SEO Content</h2>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => copyToClipboard(editableSEOContent.h1_heading)}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
+                  >
+                    Copy H1
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(editableSEOContent.h2_headings.join('\n'))}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
+                  >
+                    Copy H2s
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(editableSEOContent.meta_description)}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
+                  >
+                    Copy Meta
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* H1 Heading */}
+                <div className="border rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    H1 Heading (Main Title)
+                  </label>
+                  <input
+                    type="text"
+                    value={editableSEOContent.h1_heading}
+                    onChange={(e) => updateSEOContent('h1_heading', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-semibold"
+                    maxLength={60}
+                  />
+                  <div className="mt-1 text-xs text-gray-500">
+                    {editableSEOContent.h1_heading.length}/60 characters
+                  </div>
+                </div>
+
+                {/* H2 Headings */}
+                <div className="border rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    H2 Headings (Subheadings)
+                  </label>
+                  <div className="space-y-2">
+                    {editableSEOContent.h2_headings.map((h2, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-500 w-6">{index + 1}.</span>
+                        <input
+                          type="text"
+                          value={h2}
+                          onChange={(e) => {
+                            const newH2s = [...editableSEOContent.h2_headings];
+                            newH2s[index] = e.target.value;
+                            updateSEOContent('h2_headings', newH2s);
+                          }}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          maxLength={70}
+                        />
+                        <span className="text-xs text-gray-500 w-12 text-right">
+                          {h2.length}/70
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Meta Description */}
+                <div className="border rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Meta Description
+                  </label>
+                  <textarea
+                    value={editableSEOContent.meta_description}
+                    onChange={(e) => updateSEOContent('meta_description', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    maxLength={160}
+                  />
+                  <div className="mt-1 text-xs text-gray-500">
+                    {editableSEOContent.meta_description.length}/160 characters
+                  </div>
+                  <div className="mt-2 text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                    This is what appears in Google search results. Include your main keyword and a compelling call-to-action.
+                  </div>
+                </div>
+
+                {/* URL Slug */}
+                <div className="border rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    URL Slug
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-500">yourwebsite.com/</span>
+                    <input
+                      type="text"
+                      value={editableSEOContent.slug}
+                      onChange={(e) => {
+                        // Convert to URL-friendly format
+                        const slug = e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9\s-]/g, '')
+                          .replace(/[\s-]+/g, '-')
+                          .replace(/^-+|-+$/g, '');
+                        updateSEOContent('slug', slug);
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      maxLength={60}
+                    />
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {editableSEOContent.slug.length}/60 characters
+                  </div>
+                </div>
+
+                {/* Search Preview */}
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Google Search Preview
+                  </label>
+                  <div className="bg-white border rounded p-3 max-w-lg">
+                    <div className="text-blue-700 text-sm hover:underline cursor-pointer mb-1">
+                      {editableSEOContent.h1_heading}
+                    </div>
+                    <div className="text-green-700 text-xs mb-2">
+                      yourwebsite.com/{editableSEOContent.slug}
+                    </div>
+                    <div className="text-gray-600 text-sm">
+                      {editableSEOContent.meta_description}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

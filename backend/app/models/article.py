@@ -23,6 +23,12 @@ class ArticleGenerationRequest(BaseModel):
     include_paraphrasing: bool = Field(default=True, description="Whether to apply paraphrasing")
     paraphrase_config: Optional[ParaphraseRequest] = Field(default=None, description="Paraphrasing configuration")
 
+class SEOContent(BaseModel):
+    h1_heading: str = Field(..., description="Main H1 heading")
+    h2_headings: List[str] = Field(..., min_items=5, max_items=5, description="Five H2 headings")
+    meta_description: str = Field(..., description="Meta description (155-160 characters)")
+    slug: str = Field(..., description="URL-friendly slug")
+
 class ArticleGenerationResponse(BaseModel):
     topic: str
     generated_article: str
@@ -33,6 +39,7 @@ class ArticleGenerationResponse(BaseModel):
     variations: Optional[List[str]] = None
     processing_time: float
     created_at: datetime
+    seo_content: Optional[SEOContent] = None
 
 class SEOAnalysisRequest(BaseModel):
     article_text: str = Field(..., min_length=50, description="Article text to analyze")
