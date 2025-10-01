@@ -3,13 +3,17 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import ReactMarkdown from 'react-markdown';
+import Link from 'next/link';
 import {
   articleAPI,
   ArticleGenerationRequest,
   ArticleGenerationResponse,
   SEOAnalysisRequest,
-  SEOAnalysisResponse
+  SEOAnalysisResponse,
+  SaveArticleRequest
 } from '../services/api';
+import { saveClientArticle } from '../lib/clientStorage';
+import { useRouter } from 'next/navigation';
 
 interface ArticleGeneratorFormData {
   topic: string;
@@ -24,11 +28,13 @@ interface ArticleGeneratorFormData {
 }
 
 const ArticleGenerator: React.FC = () => {
+  const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedArticle, setGeneratedArticle] = useState<ArticleGenerationResponse | null>(null);
   const [seoAnalysis, setSeoAnalysis] = useState<SEOAnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'article' | 'variations' | 'seo'>('article');
+  const [saving, setSaving] = useState(false);
 
   const {
     register,
@@ -110,9 +116,72 @@ const ArticleGenerator: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const saveArticleToStorage = async () => {
+    if (!generatedArticle) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const saveRequest: SaveArticleRequest = {
+        title: generatedArticle.topic,
+        content: generatedArticle.generated_article,
+        topic: generatedArticle.topic,
+        keywords: Object.keys(generatedArticle.keyword_density),
+        tone: 'professional', // Varsayılan değer, formdan alınabilir
+        wordCount: generatedArticle.word_count,
+        readabilityScore: generatedArticle.readability_score,
+        seoScore: seoAnalysis?.seo_score,
+        metaDescription: generatedArticle.meta_description
+      };
+
+      // Önce backend'e deneyelim
+      try {
+        const response = await articleAPI.saveArticle(saveRequest);
+        if (response.success) {
+          alert('Article saved successfully!');
+          // Makale düzenleme sayfasına yönlendir
+          router.push(`/articles/${response.slug}/edit`);
+        }
+      } catch (backendError) {
+        // Backend çalışmazsa client storage'a kaydet
+        const slug = saveClientArticle(
+          generatedArticle.topic,
+          generatedArticle.generated_article,
+          {
+            topic: generatedArticle.topic,
+            keywords: Object.keys(generatedArticle.keyword_density),
+            tone: 'professional',
+            wordCount: generatedArticle.word_count,
+            readabilityScore: generatedArticle.readability_score,
+            seoScore: seoAnalysis?.seo_score,
+            metaDescription: generatedArticle.meta_description
+          }
+        );
+
+        alert('Article saved successfully!');
+        // Makale düzenleme sayfasına yönlendir
+        router.push(`/articles/${slug}/edit`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save article');
+      alert('Error saving article: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">SEO Article Generator</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">SEO Article Generator</h1>
+        <Link
+          href="/articles"
+          className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm font-medium"
+        >
+          My Articles
+        </Link>
+      </div>
 
       {/* Generation Form */}
       <div className="bg-gray-50 p-6 rounded-lg mb-8">
@@ -351,6 +420,13 @@ const ArticleGenerator: React.FC = () => {
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 text-sm"
                   >
                     Download
+                  </button>
+                  <button
+                    onClick={saveArticleToStorage}
+                    disabled={saving}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving ? 'Saving...' : 'Save & Edit'}
                   </button>
                 </div>
               </div>

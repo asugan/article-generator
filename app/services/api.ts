@@ -60,6 +60,55 @@ export interface SEOAnalysisResponse {
   suggestions: string[];
 }
 
+export interface SaveArticleRequest {
+  title: string;
+  content: string;
+  topic: string;
+  keywords: string[];
+  tone: string;
+  wordCount: number;
+  readabilityScore: number;
+  seoScore?: number;
+  metaDescription: string;
+}
+
+export interface SaveArticleResponse {
+  success: boolean;
+  slug: string;
+  message: string;
+}
+
+export interface UpdateArticleRequest {
+  content?: string;
+  title?: string;
+  metaDescription?: string;
+}
+
+export interface UpdateArticleResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface DeleteArticleResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface SelectedTextParaphraseRequest {
+  text: string;
+  adequacy: number;
+  fluency: number;
+  diversity: number;
+  max_variations?: number;
+}
+
+export interface SelectedTextParaphraseResponse {
+  original_text: string;
+  paraphrased_variations: string[];
+  confidence_scores: number[];
+  processing_time: number;
+}
+
 // API functions
 export const articleAPI = {
   // Health check
@@ -83,6 +132,42 @@ export const articleAPI = {
   // Analyze SEO
   analyzeSEO: async (request: SEOAnalysisRequest): Promise<SEOAnalysisResponse> => {
     const response = await api.post('/api/seo-analysis', request);
+    return response.data;
+  },
+
+  // Save article
+  saveArticle: async (request: SaveArticleRequest): Promise<SaveArticleResponse> => {
+    const response = await api.post('/api/articles', request);
+    return response.data;
+  },
+
+  // Get articles list
+  getArticles: async () => {
+    const response = await api.get('/api/articles');
+    return response.data;
+  },
+
+  // Get article by slug
+  getArticleBySlug: async (slug: string) => {
+    const response = await api.get(`/api/articles/${slug}`);
+    return response.data;
+  },
+
+  // Update article
+  updateArticle: async (slug: string, request: UpdateArticleRequest): Promise<UpdateArticleResponse> => {
+    const response = await api.put(`/api/articles/${slug}`, request);
+    return response.data;
+  },
+
+  // Delete article
+  deleteArticle: async (slug: string): Promise<DeleteArticleResponse> => {
+    const response = await api.delete(`/api/articles/${slug}`);
+    return response.data;
+  },
+
+  // Paraphrase selected text
+  paraphraseSelectedText: async (request: SelectedTextParaphraseRequest): Promise<SelectedTextParaphraseResponse> => {
+    const response = await api.post('/api/paraphrase', request);
     return response.data;
   },
 };

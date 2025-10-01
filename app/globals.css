@@ -24,3 +24,75 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Input and textarea text color fixes */
+input, textarea {
+  color: #000000 !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+/* Ensure input text is visible in all themes */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+}
+
+/* Preview mode and paraphrase text fixes */
+div[class~="border-gray-300"] {
+  color: #000000 !important;
+}
+
+div[class~="border-gray-300"] * {
+  color: #000000 !important;
+}
+
+/* Preview content specifically */
+.max-w-none, .prose, .prose * {
+  color: #000000 !important;
+}
+
+/* Paraphrase modal text */
+div[class~="bg-gray-50"] p {
+  color: #000000 !important;
+}
+
+div[class~="bg-gray-50"] {
+  color: #000000 !important;
+}
+
+/* All paraphrase options */
+.border.border-gray-200 p,
+.border.border-gray-200 div {
+  color: #000000 !important;
+}
+
+/* Override text colors specifically */
+.text-gray-700, .text-gray-600, .text-gray-500 {
+  color: #000000 !important;
+}
+
+/* For dark mode support */
+@media (prefers-color-scheme: dark) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+  }
+
+  .prose, .prose *, .modal-content, .modal-content *,
+  .bg-gray-50 p, .bg-gray-50 div, .text-gray-700, .text-sm {
+    color: #000000 !important;
+  }
+}
