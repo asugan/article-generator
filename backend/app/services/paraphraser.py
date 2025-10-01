@@ -91,6 +91,7 @@ class ParaphrasingService:
         """Paraphrase using the actual Parrot model"""
         variations = []
         confidence_scores = []
+        start_time = time.time()
 
         try:
             # Map frontend parameters to Parrot's parameters
@@ -100,38 +101,51 @@ class ParaphrasingService:
             # Determine diversity ranker based on diversity parameter
             diversity_ranker = "levenshtein" if request.diversity > 1.0 else "none"
 
-            # Set max length appropriate for articles (longer than default 32)
-            max_length = min(256, max(64, len(request.text.split()) * 2))
+            # For articles, work with shorter chunks - Parrot was trained on max 32 tokens
+            text_to_paraphrase = request.text.strip()
 
-            # For articles, we might want to paraphrase in chunks if too long
-            text_to_paraphrase = request.text
-            if len(text_to_paraphrase) > 1000:
-                # Take first 1000 characters for paraphrasing
-                text_to_paraphrase = text_to_paraphrase[:1000] + "..."
+            # Take a reasonable chunk for paraphrasing (around 50-100 words)
+            words = text_to_paraphrase.split()
+            if len(words) > 80:
+                text_to_paraphrase = ' '.join(words[:80]) + "..."
 
-            logger.info(f"Paraphrasing with parameters: adequacy={adequacy_threshold}, fluency={fluency_threshold}, diversity_ranker={diversity_ranker}")
+            # Ensure minimum length
+            if len(text_to_paraphrase) < 20:
+                text_to_paraphrase = text_to_paraphrase[:200]  # Take first 200 chars if too short
 
-            # Generate paraphrases using Parrot
-            para_phrases = self.parrot.augment(
-                input_phrase=text_to_paraphrase,
-                diversity_ranker=diversity_ranker,
-                do_diverse=request.diversity > 1.0,
-                max_return_phrases=request.max_variations,
-                max_length=max_length,
-                adequacy_threshold=adequacy_threshold,
-                fluency_threshold=fluency_threshold
-            )
+            logger.info(f"Paraphrasing chunk of length {len(text_to_paraphrase)} chars")
+            logger.info(f"Parameters: adequacy={adequacy_threshold}, fluency={fluency_threshold}, diversity_ranker={diversity_ranker}")
 
-            if para_phrases:
-                for phrase in para_phrases:
-                    variations.append(phrase)
-                    # Calculate confidence based on model parameters and quality
-                    confidence = self._calculate_model_confidence(
-                        request.adequacy, request.fluency, request.diversity, phrase
-                    )
-                    confidence_scores.append(confidence)
-            else:
-                logger.warning("No paraphrases generated, using fallback")
+            # Generate paraphrases using Parrot with simpler parameters
+            try:
+                para_phrases = self.parrot.augment(
+                    input_phrase=text_to_paraphrase,
+                    diversity_ranker=diversity_ranker,
+                    do_diverse=request.diversity > 1.0,
+                    max_return_phrases=request.max_variations,
+                    max_length=128,  # Conservative length
+                    adequacy_threshold=adequacy_threshold,
+                    fluency_threshold=fluency_threshold
+                )
+
+                # Check if we got valid results
+                if para_phrases and isinstance(para_phrases, list) and len(para_phrases) > 0:
+                    logger.info(f"Successfully generated {len(para_phrases)} paraphrases")
+
+                    for phrase in para_phrases:
+                        if phrase and len(phrase.strip()) > 10:  # Filter out empty or very short results
+                            variations.append(phrase)
+                            # Calculate confidence based on model parameters and quality
+                            confidence = self._calculate_model_confidence(
+                                request.adequacy, request.fluency, request.diversity, phrase
+                            )
+                            confidence_scores.append(confidence)
+                else:
+                    logger.warning(f"Invalid or empty paraphrase results: {para_phrases}")
+                    return await self._paraphrase_with_fallback(request)
+
+            except Exception as model_error:
+                logger.error(f"Model-specific error: {str(model_error)}")
                 return await self._paraphrase_with_fallback(request)
 
         except Exception as e:
@@ -145,6 +159,7 @@ class ParaphrasingService:
         """Fallback paraphrasing using simple templates"""
         variations = []
         confidence_scores = []
+        start_time = time.time()
 
         # Generate variations based on max_variations
         for i in range(min(request.max_variations, 3)):
@@ -162,7 +177,7 @@ class ParaphrasingService:
             variations.append(variation)
             confidence_scores.append(confidence)
 
-        processing_time = time.time() - time.time()  # Will be updated at the end
+        processing_time = time.time() - start_time
         return variations, confidence_scores, processing_time
 
     def _simple_synonym_replacement(self, text: str) -> str:
