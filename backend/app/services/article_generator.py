@@ -11,6 +11,7 @@ from services.paraphraser import paraphrasing_service
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class ArticleGeneratorService:
     """Service for generating SEO-optimized articles"""
 
@@ -67,7 +68,8 @@ class ArticleGeneratorService:
 
         # Calculate metadata
         word_count = len(article_content.split())
-        keyword_density = self._calculate_keyword_density(article_content, request.keywords)
+        keyword_density = self._calculate_keyword_density(
+            article_content, request.keywords)
         processing_time = time.time() - start_time
 
         metadata = {
@@ -83,12 +85,15 @@ class ArticleGeneratorService:
         """Generate article content based on request parameters"""
         # Try Nano-GPT API first
         try:
-            logger.info(f"Attempting to generate article using Nano-GPT API for topic: {request.topic}")
+            logger.info(
+                f"Attempting to generate article using Nano-GPT API for topic: {request.topic}")
             return await self._generate_with_nano_gpt(request)
         except Exception as e:
-            logger.warning(f"Nano-GPT API failed: {e}, falling back to templates")
+            logger.warning(
+                f"Nano-GPT API failed: {e}, falling back to templates")
             # If API fails, use template system
-            logger.info(f"Using template-based generation for topic: {request.topic}")
+            logger.info(
+                f"Using template-based generation for topic: {request.topic}")
             return self._generate_with_templates(request)
 
     async def _generate_with_nano_gpt(self, request: ArticleGenerationRequest) -> str:
@@ -98,9 +103,11 @@ class ArticleGeneratorService:
 
         if not self.api_key:
             logger.error("NANO_GPT_API_KEY not found in environment variables")
-            raise Exception("NANO_GPT_API_KEY not found in environment variables")
+            raise Exception(
+                "NANO_GPT_API_KEY not found in environment variables")
 
-        keywords_str = ", ".join(request.keywords) if request.keywords else request.topic
+        keywords_str = ", ".join(
+            request.keywords) if request.keywords else request.topic
         tone_instructions = {
             "professional": "Write in a professional, formal tone suitable for business audiences.",
             "casual": "Write in a casual, conversational tone that's friendly and accessible.",
@@ -120,7 +127,7 @@ class ArticleGeneratorService:
 Please write a complete, well-structured article."""
 
         payload = {
-            "model": "deepseek-v3.2-exp-original",
+            "model": "deepseek-ai/deepseek-v3.2-exp",
             "messages": [
                 {
                     "role": "system",
@@ -132,7 +139,8 @@ Please write a complete, well-structured article."""
                 }
             ],
             "temperature": 0.7,
-            "max_tokens": min(request.target_length * 2, 4000),  # Rough estimate
+            # Rough estimate
+            "max_tokens": min(request.target_length * 2, 4000),
             "stream": False
         }
 
@@ -146,8 +154,10 @@ Please write a complete, well-structured article."""
             response = await client.post(self.api_url, json=payload, headers=headers)
 
             if response.status_code != 200:
-                logger.error(f"API request failed with status {response.status_code}: {response.text}")
-                raise Exception(f"API request failed with status {response.status_code}: {response.text}")
+                logger.error(
+                    f"API request failed with status {response.status_code}: {response.text}")
+                raise Exception(
+                    f"API request failed with status {response.status_code}: {response.text}")
 
             data = response.json()
 
@@ -159,9 +169,11 @@ Please write a complete, well-structured article."""
             # Post-process to ensure it meets length requirements
             word_count = len(article_content.split())
             if word_count < request.target_length * 0.8:  # If too short
-                article_content = self._expand_article(article_content, request.target_length - word_count)
+                article_content = self._expand_article(
+                    article_content, request.target_length - word_count)
             elif word_count > request.target_length * 1.2:  # If too long
-                article_content = self._condense_article(article_content, word_count - request.target_length)
+                article_content = self._condense_article(
+                    article_content, word_count - request.target_length)
 
             return article_content
 
@@ -172,11 +184,14 @@ Please write a complete, well-structured article."""
         target_length = request.target_length
 
         # Select templates
-        introduction = random.choice(self.introduction_templates).format(topic=topic)
-        conclusion = random.choice(self.conclusion_templates).format(topic=topic)
+        introduction = random.choice(
+            self.introduction_templates).format(topic=topic)
+        conclusion = random.choice(
+            self.conclusion_templates).format(topic=topic)
 
         # Generate body paragraphs
-        body_paragraphs = self._generate_body_paragraphs(topic, keywords, target_length)
+        body_paragraphs = self._generate_body_paragraphs(
+            topic, keywords, target_length)
 
         # Combine sections
         article_parts = [introduction] + body_paragraphs + [conclusion]
@@ -185,15 +200,18 @@ Please write a complete, well-structured article."""
         # Adjust length to meet target
         current_length = len(article.split())
         if current_length < target_length:
-            article = self._expand_article(article, target_length - current_length)
+            article = self._expand_article(
+                article, target_length - current_length)
         elif current_length > target_length:
-            article = self._condense_article(article, current_length - target_length)
+            article = self._condense_article(
+                article, current_length - target_length)
 
         return article
 
     def _generate_body_paragraphs(self, topic: str, keywords: List[str], target_length: int) -> List[str]:
         """Generate body paragraphs for the article"""
-        num_paragraphs = max(3, target_length // 100)  # Approximate number of paragraphs
+        num_paragraphs = max(3, target_length //
+                             100)  # Approximate number of paragraphs
         paragraphs = []
 
         paragraph_topics = [
@@ -223,7 +241,8 @@ Please write a complete, well-structured article."""
         # Add keyword mentions naturally
         if keywords:
             keyword_sentence = f"Keywords such as {', '.join(keywords[:3])} are particularly relevant to this discussion."
-            sentences.insert(random.randint(1, len(sentences)-1), keyword_sentence)
+            sentences.insert(random.randint(
+                1, len(sentences)-1), keyword_sentence)
 
         return " ".join(sentences[:random.randint(3, 5)])
 
@@ -258,7 +277,8 @@ Please write a complete, well-structured article."""
             sentences.sort(key=len)
             removed = sentences.pop(0)
             words_to_remove -= len(removed.split())
-            sentences.sort(key=lambda x: article.find(x))  # Restore original order
+            # Restore original order
+            sentences.sort(key=lambda x: article.find(x))
 
         return '. '.join(sentences)
 
@@ -268,8 +288,10 @@ Please write a complete, well-structured article."""
         density = {}
 
         for keyword in keywords:
-            keyword_count = len(re.findall(re.escape(keyword), text, re.IGNORECASE))
-            density[keyword] = round((keyword_count / word_count) * 100, 2) if word_count > 0 else 0
+            keyword_count = len(re.findall(
+                re.escape(keyword), text, re.IGNORECASE))
+            density[keyword] = round(
+                (keyword_count / word_count) * 100, 2) if word_count > 0 else 0
 
         return density
 
@@ -294,8 +316,10 @@ Please write a complete, well-structured article."""
         avg_chars_per_word = sum(len(word) for word in words) / len(words)
 
         # Mock readability formula (simplified Flesch-Kincaid)
-        readability = 100 - (1.5 * avg_words_per_sentence) - (2 * avg_chars_per_word)
+        readability = 100 - (1.5 * avg_words_per_sentence) - \
+            (2 * avg_chars_per_word)
         return round(max(0.0, min(100.0, readability)), 1)
+
 
 # Global service instance
 article_generator_service = ArticleGeneratorService()
