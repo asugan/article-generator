@@ -117,6 +117,37 @@ export interface SelectedTextParaphraseResponse {
   processing_time: number;
 }
 
+export interface HeadingsGenerationRequest {
+  topic: string;
+  keywords: string[];
+  tone: 'professional' | 'casual' | 'formal';
+}
+
+export interface HeadingsGenerationResponse {
+  seo_content: SEOContent;
+  processing_time: number;
+  created_at: string;
+}
+
+export interface H2ContentRequest {
+  topic: string;
+  keywords: string[];
+  tone: 'professional' | 'casual' | 'formal';
+  include_paraphrasing: boolean;
+  paraphrase_config?: ParaphraseRequest;
+  seo_content: SEOContent;
+  h2_heading: string;
+  previous_content: string;
+}
+
+export interface H2ContentResponse {
+  h2_heading: string;
+  generated_content: string;
+  word_count: number;
+  processing_time: number;
+  created_at: string;
+}
+
 // API functions
 export const articleAPI = {
   // Health check
@@ -176,6 +207,18 @@ export const articleAPI = {
   // Paraphrase selected text
   paraphraseSelectedText: async (request: SelectedTextParaphraseRequest): Promise<SelectedTextParaphraseResponse> => {
     const response = await api.post('/api/paraphrase', request);
+    return response.data;
+  },
+
+  // Generate headings only
+  generateHeadings: async (request: HeadingsGenerationRequest): Promise<HeadingsGenerationResponse> => {
+    const response = await api.post('/api/generate-headings', request);
+    return response.data;
+  },
+
+  // Generate H2 content
+  generateH2Content: async (request: H2ContentRequest): Promise<H2ContentResponse> => {
+    const response = await api.post('/api/generate-h2-content', request);
     return response.data;
   },
 };

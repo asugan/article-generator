@@ -57,20 +57,7 @@ class ArticleGeneratorService:
         # Generate article content with SEO structure
         article_content = await self._generate_article_content(request, seo_content)
 
-        # Apply paraphrasing if requested
-        if request.include_paraphrasing:
-            # Create paraphrase request with the generated article content
-            paraphrase_request = ParaphraseRequest(
-                text=article_content,
-                adequacy=request.paraphrase_config.adequacy if request.paraphrase_config else 1.2,
-                fluency=request.paraphrase_config.fluency if request.paraphrase_config else 1.5,
-                diversity=request.paraphrase_config.diversity if request.paraphrase_config else 1.0,
-                max_variations=1
-            )
-
-            variations, _, _ = await paraphrasing_service.paraphrase_text(paraphrase_request)
-            if variations:
-                article_content = variations[0]
+        # Note: Paraphrasing disabled for article generation - only available in editor
 
         # Calculate metadata
         word_count = len(article_content.split())
@@ -91,6 +78,197 @@ class ArticleGeneratorService:
         }
 
         return article_content, metadata, processing_time
+
+    async def generate_article_headings(self, request: ArticleGenerationRequest) -> Tuple[SEOContent, float]:
+        """
+        Generate only SEO-optimized headings (H1 and H2) for an article
+
+        Args:
+            request: ArticleGenerationRequest containing generation parameters
+
+        Returns:
+            Tuple of (seo_content, processing_time)
+        """
+        start_time = time.time()
+
+        # Generate SEO content (headings, meta, slug)
+        seo_content = await seo_content_generator.generate_seo_content(
+            request.topic, request.keywords
+        )
+
+        processing_time = time.time() - start_time
+
+        return seo_content, processing_time
+
+    async def generate_h2_content(self, request: ArticleGenerationRequest, seo_content: SEOContent,
+                                 h2_heading: str, previous_content: str = "") -> Tuple[str, float]:
+        """
+        Generate content for a specific H2 heading with context from previous sections
+
+        Args:
+            request: ArticleGenerationRequest containing generation parameters
+            seo_content: SEO content with headings
+            h2_heading: The specific H2 heading to generate content for
+            previous_content: Content from previous sections for context
+
+        Returns:
+            Tuple of (generated_content, processing_time)
+        """
+        start_time = time.time()
+
+        try:
+            # Try Nano-GPT API first
+            content = await self._generate_h2_content_with_ai(request, seo_content, h2_heading, previous_content)
+        except Exception as e:
+            logger.warning(f"AI generation failed for H2 '{h2_heading}': {e}, using templates")
+            content = self._generate_h2_content_with_templates(h2_heading, request.keywords, request.topic)
+
+        # Note: Paraphrasing disabled for H2 content generation - only available in editor
+
+        processing_time = time.time() - start_time
+        return content, processing_time
+
+    async def _generate_h2_content_with_ai(self, request: ArticleGenerationRequest, seo_content: SEOContent,
+                                         h2_heading: str, previous_content: str = "") -> str:
+        """Generate H2 content using Nano-GPT API with context"""
+        import os
+        self.api_key = os.getenv("NANO_GPT_API_KEY")
+
+        if not self.api_key:
+            logger.error("NANO_GPT_API_KEY not found in environment variables")
+            raise Exception("NANO_GPT_API_KEY not found in environment variables")
+
+        keywords_str = ", ".join(request.keywords) if request.keywords else request.topic
+        tone_instructions = {
+            "professional": "Write in a professional, formal tone suitable for business audiences.",
+            "casual": "Write in a casual, conversational tone that's friendly and accessible.",
+            "formal": "Write in a very formal, academic tone with proper structure and language."
+        }
+
+        # Build context from previous content
+        context_section = ""
+        if previous_content:
+            # Take last 200 characters of previous content for context
+            context_snippet = previous_content[-200:] if len(previous_content) > 200 else previous_content
+            context_section = f"""
+Previous section context:
+{context_snippet}
+
+Make sure this new section flows naturally from the previous content."""
+
+        prompt = f"""Write a detailed section for the H2 heading: "{h2_heading}"
+
+Article context:
+- Main topic: {request.topic}
+- H1 title: {seo_content.h1_heading}
+- Keywords to include: {keywords_str}
+- Tone: {tone_instructions.get(request.tone, "professional")}
+{context_section}
+
+Requirements:
+- Write 150-250 words for this section
+- Include practical examples and actionable insights
+- Make it engaging and informative
+- Include relevant keywords naturally
+- Ensure it flows logically from previous sections
+- Focus specifically on the H2 topic: {h2_heading}
+
+Write the content for this section (without the H2 heading itself):"""
+
+        payload = {
+            "model": "deepseek-ai/deepseek-v3.2-exp",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an expert SEO content writer who creates high-quality, engaging sections that flow naturally and provide value to readers."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 800,
+            "stream": False
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            logger.info(f"Making H2 content request to Nano-GPT API: {self.api_url}")
+            response = await client.post(self.api_url, json=payload, headers=headers)
+
+            if response.status_code != 200:
+                logger.error(f"API request failed with status {response.status_code}: {response.text}")
+                raise Exception(f"API request failed with status {response.status_code}: {response.text}")
+
+            data = response.json()
+
+            if "choices" not in data or len(data["choices"]) == 0:
+                raise Exception("Invalid API response format")
+
+            return data["choices"][0]["message"]["content"].strip()
+
+    def _generate_h2_content_with_templates(self, h2_heading: str, keywords: List[str], topic: str) -> str:
+        """Fallback template-based H2 content generation"""
+        h2_lower = h2_heading.lower()
+
+        # Template sentences based on H2 content patterns
+        templates = {
+            "what": [
+                f"{h2_heading} refers to the fundamental concepts and principles that form the foundation of modern {topic.lower()} strategies.",
+                f"Understanding {h2_heading} is essential for anyone looking to implement effective {topic.lower()} solutions.",
+                f"The core aspects of {h2_heading} include various methodologies and approaches that have proven successful in recent years."
+            ],
+            "why": [
+                f"{h2_heading} plays a crucial role in achieving success with {topic.lower()} initiatives.",
+                f"The importance of {h2_heading} cannot be overstated when implementing comprehensive {topic.lower()} strategies.",
+                f"Organizations that prioritize {h2_heading} typically see significant improvements in their overall {topic.lower()} performance."
+            ],
+            "how": [
+                f"Implementing {h2_heading} requires careful planning and strategic execution.",
+                f"The process of {h2_heading} involves several key steps that must be followed systematically.",
+                f"Successfully {h2_lower.replace('how to ', '')} demands attention to detail and adherence to best practices."
+            ],
+            "benefits": [
+                f"{h2_heading} offers numerous advantages for organizations seeking to optimize their {topic.lower()} efforts.",
+                f"The positive impact of {h2_heading} extends across multiple areas of business operations.",
+                f"Organizations that leverage {h2_heading} report significant improvements in efficiency and effectiveness."
+            ],
+            "challenges": [
+                f"{h2_heading} presents several obstacles that organizations must overcome to achieve success.",
+                f"Common difficulties in {h2_lower.replace('challenges', '')} require strategic thinking and innovative solutions.",
+                f"Addressing {h2_heading} proactively helps organizations avoid potential pitfalls and setbacks."
+            ]
+        }
+
+        # Select appropriate template based on H2 content
+        selected_templates = templates.get("how", templates["what"])  # Default to "how" templates
+
+        for key, template_list in templates.items():
+            if key in h2_lower:
+                selected_templates = template_list
+                break
+
+        # Build paragraph
+        sentences = [random.choice(selected_templates)]
+
+        # Add keyword mentions naturally
+        if keywords:
+            keyword_sentence = f"Keywords such as {', '.join(keywords[:3])} are particularly relevant to this discussion."
+            sentences.insert(1, keyword_sentence)
+
+        # Add more context sentences
+        sentences.extend([
+            "This aspect deserves careful consideration and strategic planning.",
+            "Research has shown that organizations implementing these approaches achieve better results.",
+            "It's important to consider both short-term benefits and long-term implications."
+        ])
+
+        return " ".join(sentences[:4])  # Limit to 4 sentences for concise H2 sections
 
     async def _generate_article_content(self, request: ArticleGenerationRequest, seo_content: SEOContent = None) -> str:
         """Generate article content based on request parameters"""

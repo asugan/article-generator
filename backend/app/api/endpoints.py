@@ -6,7 +6,9 @@ from datetime import datetime
 from models.article import (
     ParaphraseRequest, ParaphraseResponse,
     ArticleGenerationRequest, ArticleGenerationResponse,
-    SEOAnalysisRequest, SEOAnalysisResponse, SEOContent
+    SEOAnalysisRequest, SEOAnalysisResponse, SEOContent,
+    HeadingsGenerationRequest, HeadingsGenerationResponse,
+    H2ContentRequest, H2ContentResponse
 )
 from services.paraphraser import paraphrasing_service
 from services.article_generator import article_generator_service
@@ -187,3 +189,70 @@ def _generate_seo_suggestions(keyword_density: Dict[str, float], readability_sco
         suggestions.append("Your article is well-optimized for SEO!")
 
     return suggestions
+
+@router.post("/generate-headings", response_model=HeadingsGenerationResponse)
+async def generate_headings(request: HeadingsGenerationRequest):
+    """
+    Generate SEO-optimized headings (H1 and H2) for an article
+    """
+    try:
+        print(f"Received headings generation request: {request}")
+
+        # Convert to ArticleGenerationRequest for compatibility
+        article_request = ArticleGenerationRequest(
+            topic=request.topic,
+            keywords=request.keywords,
+            tone=request.tone,
+            include_paraphrasing=False,  # No paraphrasing for headings
+            target_length=500  # Default length for compatibility
+        )
+
+        seo_content, processing_time = await article_generator_service.generate_article_headings(article_request)
+
+        return HeadingsGenerationResponse(
+            seo_content=SEOContent(
+                h1_heading=seo_content.h1_heading,
+                h2_headings=seo_content.h2_headings,
+                meta_description=seo_content.meta_description,
+                slug=seo_content.slug
+            ),
+            processing_time=processing_time,
+            created_at=datetime.now()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Headings generation failed: {str(e)}")
+
+@router.post("/generate-h2-content", response_model=H2ContentResponse)
+async def generate_h2_content(request: H2ContentRequest):
+    """
+    Generate content for a specific H2 heading with context
+    """
+    try:
+        print(f"Received H2 content generation request for: {request.h2_heading}")
+
+        # Convert to ArticleGenerationRequest for compatibility
+        article_request = ArticleGenerationRequest(
+            topic=request.topic,
+            keywords=request.keywords,
+            tone=request.tone,
+            include_paraphrasing=request.include_paraphrasing,
+            paraphrase_config=request.paraphrase_config,
+            target_length=500  # Default length for compatibility
+        )
+
+        generated_content, processing_time = await article_generator_service.generate_h2_content(
+            article_request,
+            request.seo_content,
+            request.h2_heading,
+            request.previous_content
+        )
+
+        return H2ContentResponse(
+            h2_heading=request.h2_heading,
+            generated_content=generated_content,
+            word_count=len(generated_content.split()),
+            processing_time=processing_time,
+            created_at=datetime.now()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"H2 content generation failed: {str(e)}")

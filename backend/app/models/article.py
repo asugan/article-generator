@@ -25,7 +25,7 @@ class ArticleGenerationRequest(BaseModel):
 
 class SEOContent(BaseModel):
     h1_heading: str = Field(..., description="Main H1 heading")
-    h2_headings: List[str] = Field(..., min_items=5, max_items=5, description="Five H2 headings")
+    h2_headings: List[str] = Field(..., min_items=6, max_items=6, description="Six H2 headings including conclusion")
     meta_description: str = Field(..., description="Meta description (155-160 characters)")
     slug: str = Field(..., description="URL-friendly slug")
 
@@ -52,3 +52,30 @@ class SEOAnalysisResponse(BaseModel):
     meta_description_suggestions: List[str]
     seo_score: float
     suggestions: List[str]
+
+class HeadingsGenerationRequest(BaseModel):
+    topic: str = Field(..., min_length=5, description="Article topic or main keyword")
+    keywords: List[str] = Field(default=[], description="Target keywords to include")
+    tone: str = Field(default="professional", description="Writing tone (professional, casual, formal)")
+
+class HeadingsGenerationResponse(BaseModel):
+    seo_content: SEOContent
+    processing_time: float
+    created_at: datetime
+
+class H2ContentRequest(BaseModel):
+    topic: str = Field(..., min_length=5, description="Article topic or main keyword")
+    keywords: List[str] = Field(default=[], description="Target keywords to include")
+    tone: str = Field(default="professional", description="Writing tone (professional, casual, formal)")
+    include_paraphrasing: bool = Field(default=True, description="Whether to apply paraphrasing")
+    paraphrase_config: Optional[ParaphraseRequest] = Field(default=None, description="Paraphrasing configuration")
+    seo_content: SEOContent = Field(..., description="SEO content with headings")
+    h2_heading: str = Field(..., description="The specific H2 heading to generate content for")
+    previous_content: str = Field(default="", description="Content from previous sections for context")
+
+class H2ContentResponse(BaseModel):
+    h2_heading: str
+    generated_content: str
+    word_count: int
+    processing_time: float
+    created_at: datetime

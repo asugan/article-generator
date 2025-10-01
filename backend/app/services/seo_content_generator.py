@@ -106,22 +106,30 @@ class SEOContentGenerator:
 Target keywords: {keywords_str}
 
 Please generate:
-1. ONE compelling H1 heading (under 60 characters, must include main keyword)
-2. FIVE relevant H2 headings covering different aspects (each under 70 characters)
-3. An engaging meta description (155-160 characters, includes main keyword)
-4. A URL-friendly slug (under 60 characters, lowercase, uses hyphens)
+1. ONE compelling H1 heading (under 60 characters, must include main keyword, avoid generic phrases like "How to be" or "What is")
+2. SIX relevant H2 headings covering different aspects (each under 70 characters):
+   - 5 main content sections covering: basics, benefits, strategies, challenges, future trends
+   - 1 conclusion section (use words like "Conclusion", "Summary", "Final Thoughts", "Key Takeaways")
+3. An engaging meta description (155-160 characters, includes main keyword, compelling call-to-action)
+4. A URL-friendly slug (under 60 characters, lowercase, uses hyphens, keyword-rich)
 
 Format your response exactly like this:
-H1: [heading here]
-H2: [heading 1]
-H2: [heading 2]
-H2: [heading 3]
-H2: [heading 4]
-H2: [heading 5]
+H1: [compelling, benefit-oriented heading here]
+H2: [heading 1 - basics/fundamentals]
+H2: [heading 2 - benefits/advantages]
+H2: [heading 3 - strategies/how-to]
+H2: [heading 4 - challenges/solutions]
+H2: [heading 5 - future/trends]
+H2: [conclusion/summary heading]
 META: [meta description here]
-SLUG: [slug here]
+SLUG: [keyword-rich-slug-here]
 
-Make sure all content is professional, engaging, and optimized for search engines."""
+Guidelines:
+- Make H1 action-oriented and benefit-focused (e.g., "Master {topic}: Complete Guide for Success" not "How to be {topic}")
+- H2 headings should be specific and value-driven
+- Include power words: Ultimate, Complete, Master, Guide, Strategies, Secrets, Proven
+- Make content sound authoritative and comprehensive
+- Meta description must entice clicks while accurately describing content"""
 
         payload = {
             "model": "deepseek-ai/deepseek-v3.2-exp",
@@ -183,15 +191,15 @@ Make sure all content is professional, engaging, and optimized for search engine
         # Validate and fallback if needed
         if not h1_heading:
             h1_heading = f"The Ultimate Guide to {topic}"
-        if len(h2_headings) < 5:
+        if len(h2_headings) < 6:
             h2_headings = self._generate_h2_fallbacks(topic, len(h2_headings))
         if not meta_description:
             meta_description = f"Learn everything about {topic}. Discover best practices, strategies, and expert insights to succeed."
         if not slug:
             slug = self._generate_slug(topic)
 
-        # Ensure we have exactly 5 H2 headings
-        h2_headings = h2_headings[:5]
+        # Ensure we have exactly 6 H2 headings
+        h2_headings = h2_headings[:6]
 
         return SEOContent(
             h1_heading=h1_heading,
@@ -219,6 +227,18 @@ Make sure all content is professional, engaging, and optimized for search engine
                 h2 = h2[:67] + "..."
             h2_headings.append(h2)
 
+        # Add conclusion
+        conclusion_templates = [
+            f"Conclusion: Mastering {topic}",
+            f"Final Thoughts on {topic}",
+            f"Key Takeaways for {topic} Success",
+            f"Summary: {topic} Best Practices"
+        ]
+        h2_headings.append(random.choice(conclusion_templates))
+
+        # Ensure exactly 6 headings
+        h2_headings = h2_headings[:6]
+
         # Generate meta description
         meta_description = self._generate_meta_description_template(topic, keywords)
 
@@ -235,13 +255,14 @@ Make sure all content is professional, engaging, and optimized for search engine
     def _generate_h2_fallbacks(self, topic: str, existing_count: int) -> List[str]:
         """Generate fallback H2 headings if AI didn't provide enough"""
         fallbacks = [
-            f"What is {topic} and Why Does it Matter?",
-            f"Key Benefits of {topic}",
-            f"Effective {topic} Strategies",
-            f"Common {topic} Challenges and Solutions",
-            f"The Future of {topic}"
+            f"Understanding {topic}: Key Fundamentals",
+            f"Essential Benefits of {topic}",
+            f"Proven {topic} Strategies for Success",
+            f"Overcoming Common {topic} Challenges",
+            f"Future Trends in {topic}",
+            f"Conclusion: Key Takeaways for {topic} Mastery"
         ]
-        needed = 5 - existing_count
+        needed = 6 - existing_count
         return fallbacks[:needed]
 
     def _generate_meta_description_template(self, topic: str, keywords: List[str] = None) -> str:
