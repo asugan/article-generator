@@ -156,6 +156,45 @@ Previous section context:
 
 Make sure this new section flows naturally from the previous content."""
 
+        # Smarter probability logic for H3 headings and lists
+        h2_lower = h2_heading.lower()
+
+        # Much lower probabilities for H3 content - very rare usage
+        if "how to" in h2_lower or "steps" in h2_lower or "process" in h2_lower:
+            h3_probability = 0.1  # 10% chance for "how-to" content
+        elif "benefits" in h2_lower or "advantages" in h2_lower:
+            h3_probability = 0.08  # 8% chance for "benefits" content
+        elif "challenges" in h2_lower or "problems" in h2_lower:
+            h3_probability = 0.08  # 8% chance for "challenges" content
+        else:
+            h3_probability = 0.05  # 5% chance for general content
+
+        include_h3_structure = random.random() < h3_probability
+
+        # Separate logic for lists - extremely rare usage
+        include_list = False
+        if include_h3_structure:
+            # Only consider lists if H3 structure is included, but with very low probability
+            list_probability = 0.1  # 10% chance even when H3 is included
+            include_list = random.random() < list_probability
+
+        h3_instruction = ""
+        if include_h3_structure:
+            list_instruction = ""
+            if include_list:
+                list_instruction = """
+- Add a bullet point or numbered list where it truly adds value (for steps, examples, benefits, etc.)"""
+            else:
+                list_instruction = """
+- Avoid using lists unless absolutely necessary for clarity"""
+
+            h3_instruction = f"""
+
+SEO Structure Enhancement:
+- Include 1-2 H3 headings within this section to create better content hierarchy
+- Use H3 headings to break down the main topic into sub-topics{list_instruction}
+- Keep the content natural and readable - don't force structured formats"""
+
         prompt = f"""Write a detailed section for the H2 heading: "{h2_heading}"
 
 Article context:
@@ -164,14 +203,16 @@ Article context:
 - Keywords to include: {keywords_str}
 - Tone: {tone_instructions.get(request.tone, "professional")}
 {context_section}
+{h3_instruction}
 
 Requirements:
-- Write 150-250 words for this section
+- Write 180-280 words for this section
 - Include practical examples and actionable insights
 - Make it engaging and informative
 - Include relevant keywords naturally
 - Ensure it flows logically from previous sections
 - Focus specifically on the H2 topic: {h2_heading}
+- Use proper markdown formatting (### for H3, * or - for bullet points, 1. for numbered lists)
 
 Write the content for this section (without the H2 heading itself):"""
 
@@ -213,8 +254,20 @@ Write the content for this section (without the H2 heading itself):"""
             return data["choices"][0]["message"]["content"].strip()
 
     def _generate_h2_content_with_templates(self, h2_heading: str, keywords: List[str], topic: str) -> str:
-        """Fallback template-based H2 content generation"""
+        """Fallback template-based H2 content generation with H3 headings and lists"""
         h2_lower = h2_heading.lower()
+
+        # Ultra-low probability logic for H3 structure - very rare usage
+        if "how to" in h2_lower or "steps" in h2_lower or "process" in h2_lower:
+            h3_probability = 0.1  # 10% chance for "how-to" content
+        elif "benefits" in h2_lower or "advantages" in h2_lower:
+            h3_probability = 0.08  # 8% chance for "benefits" content
+        elif "challenges" in h2_lower or "problems" in h2_lower:
+            h3_probability = 0.08  # 8% chance for "challenges" content
+        else:
+            h3_probability = 0.05  # 5% chance for general content
+
+        include_h3_structure = random.random() < h3_probability
 
         # Template sentences based on H2 content patterns
         templates = {
@@ -253,22 +306,98 @@ Write the content for this section (without the H2 heading itself):"""
                 selected_templates = template_list
                 break
 
-        # Build paragraph
-        sentences = [random.choice(selected_templates)]
+        if include_h3_structure:
+            # Separate logic for lists in templates - extremely rare
+            include_list_in_template = random.random() < 0.1  # 10% chance for lists
 
-        # Add keyword mentions naturally
-        if keywords:
-            keyword_sentence = f"Keywords such as {', '.join(keywords[:3])} are particularly relevant to this discussion."
-            sentences.insert(1, keyword_sentence)
+            # Generate content with H3 headings (and sometimes lists)
+            content_parts = []
 
-        # Add more context sentences
-        sentences.extend([
-            "This aspect deserves careful consideration and strategic planning.",
-            "Research has shown that organizations implementing these approaches achieve better results.",
-            "It's important to consider both short-term benefits and long-term implications."
-        ])
+            # Main opening paragraph
+            content_parts.append(random.choice(selected_templates))
 
-        return " ".join(sentences[:4])  # Limit to 4 sentences for concise H2 sections
+            # Add H3 heading
+            if "how" in h2_lower or "steps" in h2_lower or "process" in h2_lower:
+                h3_title = "### Key Steps to Consider"
+                if include_list_in_template:
+                    content_parts.append(h3_title)
+                    content_parts.extend([
+                        "- Research and analysis of current requirements",
+                        "- Strategic planning and resource allocation",
+                        "- Implementation with proper monitoring",
+                        "- Continuous evaluation and optimization"
+                    ])
+                else:
+                    content_parts.append(h3_title)
+                    content_parts.append("The process involves several critical phases that must be executed systematically. Each phase builds upon the previous one, ensuring a comprehensive approach that addresses all key requirements and potential challenges.")
+            elif "benefits" in h2_lower or "advantages" in h2_lower:
+                h3_title = "### Main Benefits"
+                if include_list_in_template:
+                    content_parts.append(h3_title)
+                    content_parts.extend([
+                        "- Improved efficiency and productivity",
+                        "- Cost reduction and better ROI",
+                        "- Enhanced competitive advantage",
+                        "- Long-term sustainability"
+                    ])
+                else:
+                    content_parts.append(h3_title)
+                    content_parts.append("Organizations that implement these strategies typically experience significant improvements across multiple areas of operation. The advantages extend beyond immediate gains to create lasting competitive advantages.")
+            elif "challenges" in h2_lower or "problems" in h2_lower:
+                h3_title = "### Common Challenges"
+                if include_list_in_template:
+                    content_parts.append(h3_title)
+                    content_parts.extend([
+                        "- Limited resources and budget constraints",
+                        "- Resistance to change from stakeholders",
+                        "- Technical complexity and integration issues",
+                        "- Maintaining consistency across teams"
+                    ])
+                else:
+                    content_parts.append(h3_title)
+                    content_parts.append("Several obstacles commonly arise during implementation, requiring careful planning and proactive mitigation strategies. These challenges, while significant, can be overcome with proper preparation and stakeholder engagement.")
+            else:
+                h3_title = "### Important Considerations"
+                if include_list_in_template:
+                    content_parts.append(h3_title)
+                    content_parts.extend([
+                        "- Industry best practices and standards",
+                        "- Alignment with business objectives",
+                        "- Stakeholder requirements and expectations",
+                        "- Future scalability and flexibility"
+                    ])
+                else:
+                    content_parts.append(h3_title)
+                    content_parts.append("Multiple factors must be carefully evaluated to ensure successful outcomes. These considerations form the foundation for effective decision-making and strategic implementation.")
+
+            # Add closing paragraph with keywords
+            if keywords:
+                keyword_sentence = f"Keywords such as {', '.join(keywords[:3])} are particularly relevant to this discussion."
+                content_parts.append(keyword_sentence)
+
+            content_parts.extend([
+                "This aspect deserves careful consideration and strategic planning.",
+                "Research has shown that organizations implementing these approaches achieve better results."
+            ])
+
+            return "\n\n".join(content_parts)
+        else:
+            # Build simple paragraph without H3 structure
+            sentences = [random.choice(selected_templates)]
+
+            # Add keyword mentions naturally
+            if keywords:
+                keyword_sentence = f"Keywords such as {', '.join(keywords[:3])} are particularly relevant to this discussion."
+                sentences.insert(1, keyword_sentence)
+
+            # Add more context sentences
+            sentences.extend([
+                "This aspect deserves careful consideration and strategic planning.",
+                "Research has shown that organizations implementing these approaches achieve better results.",
+                "It's important to consider both short-term benefits and long-term implications."
+            ])
+
+            return " ".join(sentences[:4])  # Limit to 4 sentences for concise H2 sections
 
     async def _generate_article_content(self, request: ArticleGenerationRequest, seo_content: SEOContent = None) -> str:
         """Generate article content based on request parameters"""
